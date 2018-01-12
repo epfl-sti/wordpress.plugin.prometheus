@@ -10,8 +10,6 @@
  * License:     MIT License / Copyright (c) 2017-2018 EPFL ⋅ STI ⋅ IT
  */
 
-
-
 if (! defined('ABSPATH')) {
     die('Access denied.');
 }
@@ -31,11 +29,8 @@ class WPPrometheusExporter
     }
 
     static private $_metrics = array();
-    static function register_metric ($name, $type = null, $help = null) {
-        self::$_metrics[$name] = array(
-            'type' => $type,
-            'help' => $help
-        );
+    static function register_metric ($name, $opts) {
+        self::$_metrics[$name] = $opts;
     }
 
     static private function serve_metrics ()
@@ -56,14 +51,19 @@ class WPPrometheusExporter
         die();
     }
 
-    static function __construct ($name, $labels = null)
+    function __construct ($name, $labels = null)
     {
         $this->name = $name;
-        if (self::$_metrics[$name]) {
+        $this->opts = self::$_metrics[$name];
+        if (! $this->opts) {
             throw new Error("Attempt to access unregistered metric $name");
         }
-        if ($labels === null) return;
 
+        if ($this->opts['has_timestamp']) {
+            $this->timestamp = time() . "";
+        }
+
+        if ($labels === null) return;
         ksort($labels);
         $label_keys = array();
         foreach ($labels as $k => $v) {
@@ -76,20 +76,26 @@ class WPPrometheusExporter
     {
         $state = self::load($this->name);
         if ($this->labels) {
-            return $state[$this->labels];
+            $value_and_timestamp = $state[$this->labels];
         } else {
-            return $state;
+            $value_and_timestamp = $state;
         }
+        $tokens = explode(" ", $value_and_timestamp);
+        return $tokens[0];
     }
 
     static function update ($value)
     {
-        $state = self::load($this->name);
-        if (! $this->labels) {
-            return $state;
+        if ($this->timestamp) {
+            $value = $value . " " . $this->timestamp;
         }
-        $state[$this->labels] = $value;
-        self::save($name, $state);
+        if (! $this->labels) {
+            self::save($name, $value);
+        } else {
+            $state = self::load($this->name);
+            $state[$this->labels] = $value;
+            self::save($name, $state);
+        }
     }
 
     static private function load ($key)
