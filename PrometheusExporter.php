@@ -23,9 +23,9 @@ class WPPrometheusExporter
     }
 
     static function do_template_redirect () {
-        if (! preg_match('@/metrics$@', $_SERVER['REQUEST_URI']))
-            return;
-        self::serve_metrics();
+        if (preg_match('@/metrics/?$@', $_SERVER['REQUEST_URI'])) {
+            self::serve_metrics();
+        }
     }
 
     static private $_metrics = array();
@@ -41,12 +41,20 @@ class WPPrometheusExporter
             if ($info['help']) {
                 printf("# HELP %s %s\n", $metricname, $info['help']);
             }
-            if ($v['type']) {
+            if ($info['type']) {
                 printf("# TYPE %s %s\n", $metricname, $info['type']);
             }
-            foreach (self::load($metricname) as $k => $v) {
-                echo sprintf("%s{%s} %s\n", $metricname, $k, $v);
+            $data = self::load($metricname);
+            if (is_array($data)) {
+                foreach ($data as $k => $v) {
+                    echo sprintf("%s{%s} %s\n", $metricname, $k, $v);
+                }
+            } elseif ($data !== false) {
+                echo sprintf("%s %s\n", $metricname, $data);
+            } else {
+                echo "# No data\n";
             }
+            echo "\n";
         }
         die();
     }
@@ -72,9 +80,9 @@ class WPPrometheusExporter
         $this->labels = implode(",", $label_keys);
     }
 
-    static function fetch ()
+    function fetch ()
     {
-        $state = self::load($this->name);
+        $state = $this->load($this->name);
         if ($this->labels) {
             $value_and_timestamp = $state[$this->labels];
         } else {
@@ -84,17 +92,17 @@ class WPPrometheusExporter
         return $tokens[0];
     }
 
-    static function update ($value)
+    function update ($value)
     {
         if ($this->timestamp) {
             $value = $value . " " . $this->timestamp;
         }
         if (! $this->labels) {
-            self::save($name, $value);
+            $this->save($this->name, $value);
         } else {
-            $state = self::load($this->name);
+            $state = $this->load($this->name);
             $state[$this->labels] = $value;
-            self::save($name, $state);
+            $this->save($this->name, $state);
         }
     }
 
@@ -120,7 +128,7 @@ class WPPrometheusExporter
 
     const SLUG = "prometheus_exporter";
 
-    static function option_name ($key)
+    static private function option_name ($key)
     {
         if (self::is_network_version()) {
             return "plugin:" . self::SLUG . ":network:" . $key;
@@ -135,7 +143,7 @@ class WPPrometheusExporter
     static private $_is_network_version = null;
     static private function is_network_version()
     {
-        if (self::_is_network_version === null) {
+        if (self::$_is_network_version === null) {
             if (! function_exists('is_plugin_active_for_network')) {
                 require_once(ABSPATH . '/wp-admin/includes/plugin.php');
             }
