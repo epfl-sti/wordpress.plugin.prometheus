@@ -4,7 +4,7 @@
  * Plugin URI:  https://github.com/epfl-sti/wordpress.plugin.prometheus
  * Description: Integrate WordPress with Prometheus (https://prometheus.io/)
 
- * Version:     0.5
+ * Version:     0.10
  * Author:      STI-IT Web
  * Author URI:  mailto:stiitweb@groupes.epfl.ch
  * License:     MIT License / Copyright (c) 2017-2018 EPFL ⋅ STI ⋅ IT
