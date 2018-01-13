@@ -69,7 +69,7 @@ class WPPrometheusExporter
         }
 
         if ($this->opts['has_timestamp']) {
-            $this->timestamp = time() . "";
+            $this->timestamp = time() . "000";  // We could do microtime(), but it's late.
         }
 
         if ($labels === null) return;
