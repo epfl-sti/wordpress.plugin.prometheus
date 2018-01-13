@@ -36,6 +36,7 @@ class WPPrometheusExporter
     static private function serve_metrics ()
     {
         // https://prometheus.io/docs/instrumenting/exposition_formats/#text-format-details
+        http_response_code(200);
         header("Content-Type: text/plain; version=0.0.4");
         foreach (self::$_metrics as $metricname => $info) {
             if ($info['help']) {
