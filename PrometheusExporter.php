@@ -29,6 +29,35 @@ class WPPrometheusExporter
     }
 
     static private $_metrics = array();
+    /**
+     * Register a metric.
+     *
+     * Note: it is typical to register a metric once, but to call (new
+     * WPPrometheusExporter($name, $labels))->update() several time
+     * with different $labels.
+     *
+     * @param $name The Prometheus name of the metric
+     *
+     * @param $opts['help'] The text that appears after "# HELP " in the
+     *                      text/plain Prometheus output
+     *
+     * @param $opts['type'] The text that appears after "# TYPE " in the
+     *                      text/plain Prometheus output
+     *
+     * @param $opts['has_timestamp'] Whether this time series automatically
+     *                               adds a timestamp upon calling @link update.
+     *                               Note that the timestamp value will be the
+     *                               time at which the WPPrometheusExporter instance
+     *                               was constructed, not the time at which the update
+     *                               method was called.
+     *
+     * @param $opts['data_cb'] The function to call to return the data (for all
+     *                         labels at once). Will be called with ($name)
+     *                         as the parameter; should return an associative array
+     *                         whose keys are strings of the form label1=value1,...
+     *                         and whose values are what the text/plain Prometheus
+     *                         output expects.
+     */
     static function register_metric ($name, $opts) {
         self::$_metrics[$name] = $opts;
     }
@@ -45,7 +74,11 @@ class WPPrometheusExporter
             if ($info['type']) {
                 printf("# TYPE %s %s\n", $metricname, $info['type']);
             }
-            $data = self::load($metricname);
+            if ($info['data_cb']) {
+                $data = call_user_func($info['data_cb'], $metricname);
+            } else {
+                $data = self::load($metricname);
+            }
             if (is_array($data)) {
                 foreach ($data as $k => $v) {
                     echo sprintf("%s{%s} %s\n", $metricname, $k, $v);
@@ -95,6 +128,12 @@ class WPPrometheusExporter
 
     function update ($value)
     {
+        if ($this->opts['data_cb']) {
+            throw new Error(sprintf(
+                "Cannot ->update() metric `%s' that has a data_cb",
+                $this->name));
+        }
+
         if ($this->timestamp) {
             $value = $value . " " . $this->timestamp;
         }
@@ -139,7 +178,7 @@ class WPPrometheusExporter
     }
 
     /**
-     * @returns Whether this plugin is currently network activated
+     * @return Whether this plugin is currently network activated
      */
     static private $_is_network_version = null;
     static private function is_network_version()
@@ -157,3 +196,25 @@ class WPPrometheusExporter
 }
 
 WPPrometheusExporter::hook();
+
+/**
+ * "Demo" metrics
+ */
+WPPrometheusExporter::register_metric(
+    'wordpress_post_count',
+    array(
+        'help'    => 'Number of posts per post type',
+        'type'    => 'gauge',
+        'data_cb' => '_wp_prometheus_exporter_get_post_counts'
+    ));
+
+function _wp_prometheus_exporter_get_post_counts ($unused_metric_name)
+{
+    $data = array();
+    foreach (get_post_types(null, 'names') as $post_type) {
+        foreach (wp_count_posts($post_type) as $key => $val) {
+            $data["posttype=$post_type,status=$key"] = $val;
+        }
+    }
+    return $data;
+}
