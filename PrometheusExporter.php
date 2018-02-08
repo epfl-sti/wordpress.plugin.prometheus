@@ -213,7 +213,7 @@ function _wp_prometheus_exporter_get_post_counts ($unused_metric_name)
     $data = array();
     foreach (get_post_types(null, 'names') as $post_type) {
         foreach (wp_count_posts($post_type) as $key => $val) {
-            $data["posttype=$post_type,status=$key"] = $val;
+            $data[sprintf('posttype="%s",status="%s"', $post_type, $key)] = $val;
         }
     }
     return $data;
