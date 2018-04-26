@@ -140,19 +140,30 @@ class WPPrometheusExporter
         if (! $this->labels) {
             $this->save($this->name, $value);
         } else {
+            global $wpdb;
+            $wpdb->query("BEGIN WORK");
             $state = $this->load($this->name);
             $state[$this->labels] = $value;
             $this->save($this->name, $state);
+            $wpdb->query("COMMIT WORK");
         }
     }
 
     static private function load ($key)
     {
-        $optname = self::option_name($key);
-        if ( self::is_network_version() ) {
-            return get_site_option( $optname );
-        } else {
-            return get_option( $optname );
+        // Always bypass the cache, lest we lose updates from
+        // concurrent processes on map-valued variables.
+        $cache_orig = $GLOBALS['wp_object_cache'];
+        $GLOBALS['wp_object_cache'] = new \WP_Object_Cache();
+        try {
+            $optname = self::option_name($key);
+            if ( self::is_network_version() ) {
+                return get_site_option( $optname );
+            } else {
+                return get_option( $optname );
+            }
+        } finally {
+            $GLOBALS['wp_object_cache'] = $cache_orig;
         }
     }
 
